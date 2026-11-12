@@ -1,10 +1,11 @@
-.PHONY: setup cards test lint fmt sim show
+.PHONY: setup cards test lint fmt sim show pool sealed
 
 PY := .venv/bin/python
 SET ?= OP-17
 GAMES ?= 400
 P0 ?= heuristic
 P1 ?= heuristic
+SEED ?= 0
 
 setup:
 	python3 -m venv .venv
@@ -29,3 +30,9 @@ sim:
 
 show:
 	$(PY) -m optcg.cli show --set $(SET) --p0 $(P0) --p1 $(P1)
+
+pool:
+	$(PY) -m optcg.cli pool --set $(SET) --seed $(SEED)
+
+sealed:
+	$(PY) -m optcg.cli sealed --set $(SET) --games $(GAMES) --p0 $(P0) --p1 $(P1)

@@ -1,0 +1,36 @@
+# Booster product model used to open sealed pools.
+#
+# Bandai publishes no pull rates, so the rarity numbers below are assumptions to
+# calibrate against real opening counts. Only rarities matter for gameplay:
+# alt arts and parallels play exactly like the base card.
+
+cards_per_pack = 12
+packs_per_box = 24
+boxes_per_case = 12
+
+# Fixed slots in every pack, by rarity. The Rare slot is upgraded to a
+# SuperRare or SecretRare in a box's hit packs.
+[slots]
+Common = 7
+Uncommon = 3
+Rare = 1
+
+# The remaining card in each pack: rarity -> probability.
+[flex]
+Leader = 0.5
+Common = 0.5
+
+# SuperRares per box: count -> weight. A box's SRs land in different packs.
+[box.super_rares]
+3 = 0.25
+4 = 0.5
+5 = 0.25
+
+[case]
+secret_rares = 2  # spread over different boxes of the case
+
+[event]
+packs_per_player = 6
+# Used when a pool opens no leader.
+fallback_leader_life = 5
+fallback_leader_power = 5000
