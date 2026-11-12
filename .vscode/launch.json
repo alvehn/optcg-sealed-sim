@@ -1,0 +1,32 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Sim: heuristic vs heuristic",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "optcg.cli",
+      "args": ["sim", "--p0", "heuristic", "--p1", "heuristic", "--games", "200"],
+      "cwd": "${workspaceFolder}",
+      "justMyCode": true
+    },
+    {
+      "name": "Show one logged game",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "optcg.cli",
+      "args": ["show", "--p0", "heuristic", "--p1", "heuristic", "--seed", "1"],
+      "cwd": "${workspaceFolder}",
+      "justMyCode": true
+    },
+    {
+      "name": "Debug current test file",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["${file}", "-q"],
+      "cwd": "${workspaceFolder}",
+      "justMyCode": false
+    }
+  ]
+}
