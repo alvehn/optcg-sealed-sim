@@ -40,32 +40,49 @@ class Source:
 
 
 def find_pack_id(source: Source, label: str) -> str:
-    """Map a set label like "OP-17" to its punk-records pack id."""
+    """Map a set label like "OP-17" to its punk-records pack id.
+
+    Some punk-records languages ship an empty packs.json (english did for OP-18), so with a
+    local clone we fall back to the data file whose cards mostly carry the set's prefix.
+    """
     packs = source.read_json("packs.json")
     for pack_id, pack in packs.items():
         if (pack.get("title_parts") or {}).get("label") == label:
             return pack_id
+    if source.local:
+        prefix = label.replace("-", "") + "-"
+        best, best_n = None, 0
+        for f in sorted((source.local / source.lang / "data").glob("*.json")):
+            with open(f) as fh:
+                n = sum(1 for c in json.load(fh) if c["id"].startswith(prefix))
+            if n > best_n:
+                best, best_n = f.stem, n
+        if best:
+            return best
     known = sorted(p["title_parts"]["label"] for p in packs.values() if p["title_parts"]["label"])
-    raise KeyError(f"set {label!r} not in punk-records yet; known sets: {', '.join(known)}")
+    raise KeyError(
+        f"set {label!r} not found in punk-records {source.lang}/packs.json "
+        f"(known: {', '.join(known) or 'none'}); pass --pack-id or --local"
+    )
 
 
 def normalize(raw_cards: list[dict], set_label: str) -> list[CardDef]:
-    """Merge parallels into their base card and keep only cards printed in this set.
+    """Merge parallels into their base card.
 
-    Packs also contain reprinted SP cards from older sets (e.g. "EB04-061_p2" in OP-17);
-    those are chase pulls rather than part of the set's rarity distribution, so they are dropped.
+    Packs also contain reprinted SP cards from older sets (e.g. "OP17-040_p1" in OP-18). They
+    are kept with `reprint=True`: they are playable when pulled, but the pack sampler only hands
+    them out as SP hits, never as part of the set's own rarity slots.
     """
     prefix = set_label.replace("-", "")  # "OP-17" -> "OP17"
     by_base: dict[str, list[dict]] = {}
     for c in raw_cards:
-        base = _VARIANT.sub("", c["id"])
-        if base.startswith(prefix + "-"):
-            by_base.setdefault(base, []).append(c)
+        by_base.setdefault(_VARIANT.sub("", c["id"]), []).append(c)
 
     cards = []
     for base, printings in sorted(by_base.items()):
         # Prefer the base printing: its rarity is the one that determines pull rates.
         c = next((p for p in printings if p["id"] == base), printings[0])
+        parallels = tuple(sorted(p["rarity"] for p in printings if p["id"] != base))
         is_leader = c["category"] == "Leader"
         cards.append(
             CardDef(
@@ -85,6 +102,8 @@ def normalize(raw_cards: list[dict], set_label: str) -> list[CardDef]:
                 rarity=c.get("rarity"),
                 keywords=parse_keywords(c.get("effect")),
                 variants=len(printings),
+                parallels=parallels,
+                reprint=not base.startswith(prefix + "-"),
             )
         )
     return cards
@@ -94,9 +113,11 @@ def _text(s: str | None) -> str | None:
     return html.unescape(s) if s else s
 
 
-def fetch_set(set_label: str, source: Source | None = None) -> list[CardDef]:
+def fetch_set(
+    set_label: str, source: Source | None = None, pack_id: str | None = None
+) -> list[CardDef]:
     source = source or Source()
-    pack_id = find_pack_id(source, set_label)
+    pack_id = pack_id or find_pack_id(source, set_label)
     return normalize(source.read_json(f"data/{pack_id}.json"), set_label)
 
 

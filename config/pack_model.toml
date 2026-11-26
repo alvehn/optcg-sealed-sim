@@ -1,36 +1,57 @@
-# Booster product model used to open sealed pools.
+# Booster product model used to open sealed pools (set up for OP-18 English).
 #
-# Bandai publishes no pull rates, so the rarity numbers below are assumptions to
-# calibrate against real opening counts. Only rarities matter for gameplay:
-# alt arts and parallels play exactly like the base card.
+# Bandai publishes no pull rates. Each number is tagged:
+#   CONFIRMED  printed on product / retail listings
+#   ESTIMATE   community tallies (small samples, directional)
+#   ASSUMED    no data; calibrate from a recorded opening
+# Only gameplay matters: an alt art, SP or Treasure Rare is the same card as its base printing.
+#
+# Sources (checked 2026-11-26):
+#   TCGTalk OP-18 tally, 2 cases / 24 boxes: https://tcgtalk.com/guides/op18-pull-rates-box-opening
+#   English slots (OP-12 listing: 7-8 C, 3 UC, 1 R, 1 R-or-higher):
+#     https://allyoucanplay.eu/products/one-piece-card-game-op-12-legacy-of-the-master-booster-pack-op12-eng
+#   "two of which are guaranteed to have a rarity of rare or higher" (Zatu, OP-12 pack review)
+#   OP-17 for comparison: ~7 SR per box from 3 cases: https://tcgtalk.com/guides/op17-pull-rates-case-opening
 
-cards_per_pack = 12
-packs_per_box = 24
-boxes_per_case = 12
+cards_per_pack = 12   # CONFIRMED
+packs_per_box = 24    # CONFIRMED
+boxes_per_case = 12   # CONFIRMED
 
-# Fixed slots in every pack, by rarity. The Rare slot is upgraded to a
-# SuperRare or SecretRare in a box's hit packs.
+# Fixed slots in every pack, by rarity. One Rare is the hit slot: it is replaced by a
+# SuperRare, SecretRare, alt art, SP or Treasure Rare in the packs a box/case schedules.
+# ASSUMED: sources agree on 3 UC and two Rare-or-better cards; "7-8 commons" does not add
+# up to 12 alongside those, so one common slot is the flex slot below.
 [slots]
-Common = 7
+Common = 6
 Uncommon = 3
-Rare = 1
+Rare = 2
 
-# The remaining card in each pack: rarity -> probability.
+# The remaining card in each pack: rarity -> probability. ASSUMED (no English leader-rate
+# data). A regular DON!! card here would behave like a Leader: neither is playable.
 [flex]
 Leader = 0.5
 Common = 0.5
 
-# SuperRares per box: count -> weight. A box's SRs land in different packs.
+# SuperRares per box: count -> weight. A box's SRs are different cards in different packs.
+# ESTIMATE: 87 regular SR in a 12-box case = 7.25/box.
 [box.super_rares]
-3 = 0.25
-4 = 0.5
-5 = 0.25
+7 = 0.75
+8 = 0.25
 
+# Hits per case, spread at random over the case's packs (at most one hit per pack).
+# Each value is a list of possible counts, picked uniformly per case.
+#   secret_rare    base SecretRares of the set                       ESTIMATE: 9 and 7
+#   alt_art        Leader / SR / Rare parallels, one entry per print ESTIMATE: ~18 and 17
+#                  (uniform over printings gives 25% L / 43% SR / 32% R; tally was 4/8/6)
+#   special        Special printings and reprint parallels (SP)      ESTIMATE: 1 and 3
+#   treasure_rare  TreasureRare printings                            ESTIMATE: ~1 per case
+# Gold DON!! (2-4 per case) is left out: unknown whether it takes a card slot, and it would
+# change fewer than 0.1 Rares per pool.
 [case]
-secret_rares = 2  # spread over different boxes of the case
+secret_rare = [7, 8, 9]
+alt_art = [17, 18]
+special = [1, 2, 3]
+treasure_rare = [1]
 
 [event]
-packs_per_player = 6
-# Used when a pool opens no leader.
-fallback_leader_life = 5
-fallback_leader_power = 5000
+packs_per_player = 6  # consecutive packs from one box: a box serves 4 players

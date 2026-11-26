@@ -1,7 +1,12 @@
 """Open booster product the way a store does: case -> box -> pack.
 
-Hits are scheduled per box rather than rolled per pack, so a box's SuperRare count stays
-inside a narrow range, and a player whose 6 packs come from one box gets correlated hits.
+Hits are scheduled rather than rolled per pack. Each case gets counts of SecretRares, alt arts,
+SPs and Treasure Rares placed in different packs, then each box gets a SuperRare count spread
+over its remaining packs. Every pack has one hit slot (a Rare unless a hit lands there).
+A player's 6 packs come consecutively from one box, so hits are correlated within a box.
+
+A hit is the playable card it prints: an alt art of a Rare is that Rare, an alt-art Leader is
+a Leader (which the deckbuilder never plays), and an SP of an older card is that reprint.
 """
 
 from __future__ import annotations
@@ -17,7 +22,9 @@ Pack = list[CardDef]
 Box = list[Pack]
 
 DEFAULT_MODEL = Path("config/pack_model.toml")
-HIT_SLOT = "Rare"  # the slot a SuperRare / SecretRare replaces
+HIT_SLOT = "Rare"  # the slot a hit replaces
+CASE_TIERS = ("secret_rare", "alt_art", "special", "treasure_rare")
+ALT_ART_RARITIES = ("Leader", "SuperRare", "Rare")
 
 
 @dataclass(frozen=True)
@@ -28,10 +35,8 @@ class PackModel:
     slots: dict[str, int]
     flex: dict[str, float]
     super_rares_per_box: dict[int, float]
-    secret_rares_per_case: int
+    case_hits: dict[str, tuple[int, ...]]  # tier -> possible counts per case (uniform)
     packs_per_player: int = 6
-    fallback_leader_life: int = 5
-    fallback_leader_power: int = 5000
 
     def __post_init__(self):
         fixed = sum(self.slots.values())
@@ -39,12 +44,19 @@ class PackModel:
             raise ValueError(f"slots ({fixed}) + flex don't add up to {self.cards_per_pack} cards")
         if self.slots.get(HIT_SLOT, 0) < 1:
             raise ValueError(f"packs need a {HIT_SLOT} slot for hits to replace")
+        unknown = set(self.case_hits) - set(CASE_TIERS)
+        if unknown:
+            raise ValueError(f"unknown case hit tiers {sorted(unknown)}; known: {CASE_TIERS}")
+        most = max(self.super_rares_per_box) * self.boxes_per_case + sum(
+            max(v) for v in self.case_hits.values()
+        )
+        if most > self.packs_per_box * self.boxes_per_case:
+            raise ValueError("more hits scheduled than packs in a case")
 
     @classmethod
     def load(cls, path: str | Path = DEFAULT_MODEL) -> PackModel:
         with open(path, "rb") as f:
             d = tomllib.load(f)
-        event = d.get("event", {})
         return cls(
             cards_per_pack=d["cards_per_pack"],
             packs_per_box=d["packs_per_box"],
@@ -52,20 +64,25 @@ class PackModel:
             slots=dict(d["slots"]),
             flex=dict(d.get("flex", {})),
             super_rares_per_box={int(k): v for k, v in d["box"]["super_rares"].items()},
-            secret_rares_per_case=d["case"]["secret_rares"],
-            packs_per_player=event.get("packs_per_player", 6),
-            fallback_leader_life=event.get("fallback_leader_life", 5),
-            fallback_leader_power=event.get("fallback_leader_power", 5000),
+            case_hits={k: tuple(v) for k, v in d.get("case", {}).items()},
+            packs_per_player=d.get("event", {}).get("packs_per_player", 6),
         )
 
-    def fallback_leader(self) -> CardDef:
-        return CardDef(
-            id="EVENT-LEADER",
-            name="Event Leader",
-            category="Leader",
-            life=self.fallback_leader_life,
-            power=self.fallback_leader_power,
-        )
+
+def hit_tiers(cards: list[CardDef]) -> dict[str, list[CardDef]]:
+    """Cards each case-hit tier draws from, one entry per printing (so more arts = likelier)."""
+    tiers: dict[str, list[CardDef]] = {t: [] for t in CASE_TIERS}
+    for c in cards:
+        if not c.reprint and c.rarity == "SecretRare":
+            tiers["secret_rare"].append(c)
+        for r in c.parallels:
+            if c.reprint or r == "Special":
+                tiers["special"].append(c)
+            elif r == "TreasureRare":
+                tiers["treasure_rare"].append(c)
+            elif r in ALT_ART_RARITIES:
+                tiers["alt_art"].append(c)
+    return tiers
 
 
 class PackSampler:
@@ -74,27 +91,42 @@ class PackSampler:
         self.rng = rng
         self.by_rarity: dict[str, list[CardDef]] = {}
         for c in cards:
-            self.by_rarity.setdefault(c.rarity or "", []).append(c)
-        needed = set(model.slots) | set(model.flex) | {"SuperRare", "SecretRare"}
+            if not c.reprint:  # reprints only come out as SP hits
+                self.by_rarity.setdefault(c.rarity or "", []).append(c)
+        needed = set(model.slots) | set(model.flex) | {"SuperRare"}
         missing = [r for r in needed if not self.by_rarity.get(r)]
         if missing:
             raise ValueError(f"set has no cards of rarity {missing}")
+        self.tiers = hit_tiers(cards)
+        empty = [t for t, n in model.case_hits.items() if max(n) > 0 and not self.tiers[t]]
+        if empty:
+            raise ValueError(f"set has no printings for case hit tiers {empty}")
         self._queue: list[Pack] = []  # unopened packs from the current case, in hand-out order
 
-    def open_case(self) -> list[Box]:
+    def schedule_case(self) -> list[dict[int, tuple[str, CardDef]]]:
+        """For each box of a case: pack index -> (tier, card) for the case-level hits."""
         m = self.model
-        secret_boxes = self.rng.sample(
-            range(m.boxes_per_case), min(m.secret_rares_per_case, m.boxes_per_case)
-        )
-        return [self.open_box(secret_rares=int(i in secret_boxes)) for i in range(m.boxes_per_case)]
+        spots = [(b, p) for b in range(m.boxes_per_case) for p in range(m.packs_per_box)]
+        self.rng.shuffle(spots)
+        boxes: list[dict[int, tuple[str, CardDef]]] = [{} for _ in range(m.boxes_per_case)]
+        for tier, counts in m.case_hits.items():
+            for _ in range(self.rng.choice(counts)):
+                b, p = spots.pop()
+                boxes[b][p] = (tier, self.rng.choice(self.tiers[tier]))
+        return boxes
 
-    def open_box(self, secret_rares: int = 0) -> Box:
+    def open_case(self) -> list[Box]:
+        return [self.open_box({p: c for p, (_, c) in h.items()}) for h in self.schedule_case()]
+
+    def open_box(self, case_hits: dict[int, CardDef] | None = None) -> Box:
+        """A box: its share of the case hits plus its own SuperRares in other packs."""
         m = self.model
+        hit_for = dict(case_hits or {})
         counts, weights = zip(*m.super_rares_per_box.items(), strict=True)
         n_sr = self.rng.choices(counts, weights)[0]
-        hit_packs = self.rng.sample(range(m.packs_per_box), n_sr + secret_rares)
-        hits = self._distinct("SuperRare", n_sr) + self._distinct("SecretRare", secret_rares)
-        hit_for = dict(zip(hit_packs, hits, strict=True))
+        free = [i for i in range(m.packs_per_box) if i not in hit_for]
+        sr_packs = self.rng.sample(free, n_sr)
+        hit_for.update(zip(sr_packs, self._distinct("SuperRare", n_sr), strict=True))
         return [self.open_pack(hit_for.get(i)) for i in range(m.packs_per_box)]
 
     def open_pack(self, hit: CardDef | None = None) -> Pack:
@@ -129,3 +161,8 @@ class PackSampler:
             pools.append([c for p in self._queue[:per] for c in p])
             del self._queue[:per]
         return pools
+
+
+def playable(pool: list[CardDef]) -> list[CardDef]:
+    """The cards a sealed player can put in their deck: everything but Leaders."""
+    return [c for c in pool if c.category != "Leader"]

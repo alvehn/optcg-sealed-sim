@@ -1,0 +1,9 @@
+# Store release event (sealed). Format confirmed by the user, 2026-11-26.
+leader = "data/leaders/event_luffy.json"  # the only leader used in simulations
+players = [16, 32]          # usual store size: min, max
+match = "bo1"
+rounds = "auto"             # ceil(log2(players)) Swiss rounds -> exactly one undefeated player
+prize = "undefeated"        # the X-0 player wins the Winner card
+bye = "win"
+# Sealed rules allow deck/sideboard swaps between games; off until the deckbuilder can tune.
+sideboard_between_rounds = false

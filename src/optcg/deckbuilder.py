@@ -1,7 +1,8 @@
-"""Build a sealed deck from a pool: a leader plus 40 cards, no colour or copy limits.
+"""Build a sealed deck from a pool: 40 cards, no colour or copy limits.
 
-The greedy builder ranks cards by a value (a printed-stats heuristic by default, or ratings
-learned from simulation) and fills the deck under curve constraints.
+The leader is fixed by the event (event Luffy, see optcg.event); Leaders opened in the pool
+are never played. The greedy builder ranks cards by a value (a printed-stats heuristic by
+default, or ratings learned from simulation) and fills the deck under curve constraints.
 """
 
 from __future__ import annotations
@@ -43,16 +44,9 @@ def stat_value(c: CardDef) -> float:
     return v
 
 
-def choose_leader(pool: list[CardDef], fallback: CardDef) -> CardDef:
-    leaders = [c for c in pool if c.category == "Leader"]
-    if not leaders:
-        return fallback
-    return max(leaders, key=lambda c: ((c.power or 0), (c.life or 0), c.id))
-
-
 def build_deck(
     pool: list[CardDef],
-    fallback_leader: CardDef,
+    leader: CardDef,
     values: Mapping[str, float] | None = None,
     cfg: BuildConfig = DEFAULT_BUILD,
 ) -> tuple[CardDef, list[CardDef]]:
@@ -61,7 +55,6 @@ def build_deck(
     def value(c: CardDef) -> float:
         return values[c.id] if values and c.id in values else stat_value(c)
 
-    leader = choose_leader(pool, fallback_leader)
     main = [c for c in pool if c.category != "Leader"]
     playable = sorted(
         (c for c in main if c.category in cfg.playable_categories),
