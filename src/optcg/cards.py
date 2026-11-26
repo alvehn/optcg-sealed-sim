@@ -48,6 +48,12 @@ class CardDef:
     rarity: str | None = None
     keywords: frozenset[str] = field(default_factory=frozenset)
     variants: int = 1  # number of printed arts (base + parallels) in the set
+    # Printed rarity of each alt-art/parallel printing in the pack, e.g. ("SuperRare", "Special").
+    # The pack sampler uses these to weight alt-art, SP and Treasure Rare hits.
+    parallels: tuple[str, ...] = ()
+    # A card from an older set that only appears in this pack as an SP/parallel insert.
+    # It is playable when pulled but is not part of the set's own rarity distribution.
+    reprint: bool = False
 
     # Card definitions are immutable and shared, so game-state copies reuse them.
     def __deepcopy__(self, memo):
@@ -64,7 +70,7 @@ class CardDef:
     @classmethod
     def from_json(cls, d: dict) -> CardDef:
         d = dict(d)
-        for key in ("colors", "types", "attributes"):
+        for key in ("colors", "types", "attributes", "parallels"):
             d[key] = tuple(d.get(key) or ())
         d["keywords"] = frozenset(d.get("keywords") or ())
         return cls(**d)

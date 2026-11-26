@@ -45,7 +45,7 @@ def raw(id_, category="Character", cost=2, rarity="Common", **kw):
     }
 
 
-def test_normalize_merges_parallels_and_drops_reprints():
+def test_normalize_merges_parallels_and_flags_reprints():
     cards = normalize(
         [
             raw("OP17-001", category="Leader", cost=5, rarity="Leader"),
@@ -57,14 +57,24 @@ def test_normalize_merges_parallels_and_drops_reprints():
         "OP-17",
     )
     by_id = {c.id: c for c in cards}
-    assert set(by_id) == {"OP17-001", "OP17-010"}
+    assert set(by_id) == {"OP17-001", "OP17-010", "EB04-061"}
     assert by_id["OP17-001"].life == 5 and by_id["OP17-001"].cost is None
+    assert by_id["OP17-001"].parallels == ("Leader",) and not by_id["OP17-001"].reprint
     assert by_id["OP17-010"].rarity == "Common" and by_id["OP17-010"].variants == 2
+    assert by_id["OP17-010"].parallels == ("SuperRare",)
     assert by_id["OP17-010"].has("Blocker")
+    assert by_id["EB04-061"].reprint and by_id["EB04-061"].parallels == ("SecretRare",)
 
 
 def test_json_roundtrip():
     c = CardDef(
-        id="X", name="X", category="Character", cost=1, types=("A",), keywords=frozenset({"Rush"})
+        id="X",
+        name="X",
+        category="Character",
+        cost=1,
+        types=("A",),
+        keywords=frozenset({"Rush"}),
+        parallels=("Rare", "Special"),
+        reprint=True,
     )
     assert CardDef.from_json(c.to_json()) == c

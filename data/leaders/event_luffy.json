@@ -1,0 +1,16 @@
+{
+  "id": "EVENT-LUFFY-4TH",
+  "name": "Monkey.D.Luffy",
+  "category": "Leader",
+  "colors": ["Red", "Green", "Blue", "Purple", "Black", "Yellow"],
+  "life": 5,
+  "power": 5000,
+  "effect": "",
+  "rules": {
+    "matches_any_name": true,
+    "matches_any_type": true,
+    "matches_any_attribute": true,
+    "counts_as_character": false
+  },
+  "notes": "4th Anniversary event leader. Confirmed by the user 2026-11-26: treated as having all card names, types and attributes; not a Character; no other effect. No OP-18 card checks Leader colour."
+}

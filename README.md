@@ -6,8 +6,8 @@ A simulation engine for One Piece TCG prerelease (sealed) events. Bots open pack
 It is not a playable game. There is no interface and no human player: games run
 headless between bots, are reproducible from a seed, and produce data for analysis.
 
-The target set is OP-18 once it appears in the official card list. Until then the engine
-runs on OP-17, which has the same data format and rarity distribution.
+The target set is OP-18 (THE DOMINANCE OF GOD) and its store release event. The plan and
+progress are in [docs/PLAN.md](docs/PLAN.md).
 
 ## Quick start
 
@@ -15,24 +15,33 @@ Requires Python 3.12+.
 
 ```bash
 make setup                         # create .venv and install
-make cards SET=OP-17               # download a set into data/cards/
+make fetch                         # clone punk-records into data/raw (optional; else GitHub)
+make cards SET=OP-18               # build data/cards/OP-18.json
 make test
 make pool SEED=4                   # open one sealed pool and show the deck built from it
+make pools EVENTS=1000             # pool statistics + per-card pool rates CSV
 make sealed GAMES=1000             # games between freshly opened sealed decks
 make sim GAMES=1000 P0=heuristic P1=random   # games between two random decks
 make show                          # print one game's log, for checking the rules
 ```
 
+## The event
+
+Every simulated player uses the 4th Anniversary event Luffy (`data/leaders/event_luffy.json`):
+5 life, 5000 power, treated as having every card name, type and attribute, and not a
+Character. Leaders opened in packs are never played. The event format (16–32 players, Swiss,
+best-of-1, the undefeated player wins) is in `config/event.toml`.
+
 ## Sealed pools
 
-`config/pack_model.toml` describes the product: cards per pack, the rarity of each pack
-slot, SuperRares per box and SecretRares per case. Hits are scheduled per box, as in real
-product, and each player's 6 packs come consecutively from one box. Bandai publishes no
-pull rates, so the numbers are assumptions you can change.
+`config/pack_model.toml` describes the product: the rarity of each pack slot, SuperRares per
+box, and per-case counts of SecretRares, alt arts, SPs and Treasure Rares. Hits are scheduled
+per case and per box, as in real product, and each player's 6 packs come consecutively from
+one box. Bandai publishes no pull rates, so each number is tagged as confirmed, a community
+estimate (with its source) or an assumption you can change.
 
-The deckbuilder picks a leader from the pool (or a fallback event leader) and 40 cards,
-ranked by printed stats with a minimum of cheap plays and a cap on expensive ones. Card
-values can be passed in to replace the stat-based ranking.
+The deckbuilder picks 40 cards ranked by printed stats, with a minimum of cheap plays and a
+cap on expensive ones. Card values can be passed in to replace the stat-based ranking.
 
 ## How it works
 
@@ -45,6 +54,7 @@ state and explore possible futures.
 src/optcg/
   cards.py          card definitions and keyword parsing
   loader.py         card data from punk-records -> data/cards/<SET>.json
+  event.py          event leader (Luffy) and event format
   packs.py          pack model and case -> box -> pack opening
   deckbuilder.py    sealed deckbuilding
   engine/
@@ -54,7 +64,7 @@ src/optcg/
   agents/           bots: random, heuristic
   sim.py            run games and matches
   cli.py            `optcg cards | sim | show | pool | sealed`
-config/             pack model
+config/             pack model, event format
 tests/              rules, loader, pack and deckbuilder tests
 ```
 

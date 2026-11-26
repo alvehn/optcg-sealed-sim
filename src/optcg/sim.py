@@ -64,15 +64,15 @@ def run_sealed(
     sampler: PackSampler,
     make_agents: Callable[[int], tuple[Agent, Agent]],
     games: int,
+    leader: CardDef,
     seed: int = 0,
 ) -> list[GameResult]:
-    """Each game: open two fresh sealed pools, build a deck from each, play."""
-    fallback = sampler.model.fallback_leader()
+    """Each game: open two fresh sealed pools, build a deck from each, play. Both use `leader`."""
     results = []
     for g in range(games):
         game_seed = seed + g
         pools = sampler.event_pools(2)
-        (l0, d0), (l1, d1) = (build_deck(p, fallback) for p in pools)
+        (l0, d0), (l1, d1) = (build_deck(p, leader) for p in pools)
         s = new_game((l0, l1), (d0, d1), seed=game_seed, first=g % 2)
         results.append(play_game(s, make_agents(game_seed), seed=game_seed))
     return results
